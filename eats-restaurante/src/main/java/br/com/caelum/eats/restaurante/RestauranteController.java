@@ -21,6 +21,7 @@ class RestauranteController {
 
 	private RestauranteRepository restauranteRepo;
 	private CardapioRepository cardapioRepo;
+	private DistanciaRestClient distanciaRestClient;
 
 	@GetMapping("/restaurantes/{id}")
 	RestauranteDto detalha(@PathVariable("id") Long id) {
@@ -54,13 +55,20 @@ class RestauranteController {
 		cardapioRepo.save(cardapio);
 		return restauranteSalvo;
 	}
-
+	
 	@PutMapping("/parceiros/restaurantes/{id}")
 	Restaurante atualiza(@RequestBody Restaurante restaurante) {
 		Restaurante doBD = restauranteRepo.getOne(restaurante.getId());
 		restaurante.setUser(doBD.getUser());
 		restaurante.setAprovado(doBD.getAprovado());
-		return restauranteRepo.save(restaurante);
+		
+		Restaurante salvo = restauranteRepo.save(restaurante);
+		
+		if(restaurante.getAprovado() && (cepDiferente(restaurante, doBD) || tipoDeCozinha(restaurante, doBD))) {
+			distanciaRestClient.restauranteAtualizado(restaurante);
+		}
+		
+		return salvo;
 	}
 
 	@GetMapping("/admin/restaurantes/em-aprovacao")
@@ -73,5 +81,16 @@ class RestauranteController {
 	@PatchMapping("/admin/restaurantes/{id}")
 	void aprova(@PathVariable("id") Long id) {
 		restauranteRepo.aprovaPorId(id);
+		
+		Restaurante restaurante = restauranteRepo.getOne(id);
+		distanciaRestClient.novoRestauranteAprovado(restaurante);
+	}
+	
+	private boolean tipoDeCozinha(Restaurante restaurante, Restaurante doBD) {
+		return !doBD.getTipoDeCozinha().getId().equals(restaurante.getTipoDeCozinha().getId());
+	}
+	
+	private boolean cepDiferente(Restaurante restaurante, Restaurante doBD) {
+		return !doBD.getCep().equals(restaurante.getCep());
 	}
 }
